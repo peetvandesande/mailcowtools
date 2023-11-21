@@ -1,0 +1,11 @@
+{
+  "name": "mailcowpfa2mc",
+  "version": "0.1",
+  "main": "pfa2mc.js",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "commander": "^6.0.0",
+    "csvtojson": "^2.0.10"
+  }
+}
