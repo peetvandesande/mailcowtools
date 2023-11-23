@@ -30,8 +30,8 @@ const inquirer = require('inquirer');
 const mysql = require('mysql');
 const { log } = require('console');
 
-
 let axiosInstance = null;
+let dbConnection = null;
 
 const configureAxios = () => {
   const instance = axios.create({
@@ -52,13 +52,9 @@ const promptPassword = () => {
   return inquirer.prompt(prompt);
 }
 
-const configureDb = async() => {
-  const input = await promptPassword();
-  const password = input.password;
+const configureDb = (password) => {
   console.log(program.opts().dburi);
   aryUriParts = program.opts().dburi.substring(8).split(/([@,\/])/);
-  console.log(aryUriParts);
-  console.log(password);
    const con = mysql.createConnection({
     user: aryUriParts[0],
     host: aryUriParts[2],
@@ -71,6 +67,7 @@ const configureDb = async() => {
       return console.error('error: ' + err.message);
     }
 
+    console.log('MySQL Connected');
     return con;
   });
 }
@@ -125,12 +122,19 @@ const main = async () => {
 //    .requiredOption('-s, --serverurl <serverurl>', 'URL of mailcow server : https://mailcow.example.org')
 //    .requiredOption('-a, --apikey <apikey>', 'APIKEY for mailcow API')
     .option('-e, --exitonerror', 'exit on first error')
+    .option('-p, --password <password>', 'Pass password as argument')
     .parse();
 
-  //program.parse(process.argv);
-  //axiosInstance = configureAxios();
-
-  await configureDb();
+     if (program.opts().password) {
+      password = program.opts().password;
+    } else {
+      const input = await promptPassword();
+      password = input.password;
+    }
+ 
+    //axiosInstance = configureAxios();
+    dbConnection = configureDb(password);
+  
   //const mailboxInfos = await importFile(program.importfile);
   //await addMailboxes(mailboxInfos);
 }
