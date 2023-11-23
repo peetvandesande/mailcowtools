@@ -31,7 +31,7 @@ const mysql = require('mysql');
 const { log } = require('console');
 
 let axiosInstance = null;
-let dbConnection = null;
+let dbPool = null;
 
 const configureAxios = () => {
   const instance = axios.create({
@@ -53,22 +53,22 @@ const promptPassword = () => {
 }
 
 const configureDb = (password) => {
-  console.log(program.opts().dburi);
   aryUriParts = program.opts().dburi.substring(8).split(/([@,\/])/);
-   const con = mysql.createConnection({
+  const pool = mysql.createPool({
     user: aryUriParts[0],
     host: aryUriParts[2],
     database: aryUriParts[4],
     password: password
   });
-
-  con.connect(function(err) {
-    if (err) {
-      return console.error('error: ' + err.message);
+  
+  pool.getConnection((err, con) =>
+  {
+    if (con) {
+      con.release();
+      return pool;
+    } else {
+      console.error('error: ' + err);
     }
-
-    console.log('MySQL Connected');
-    return con;
   });
 }
 
@@ -133,7 +133,7 @@ const main = async () => {
     }
  
     //axiosInstance = configureAxios();
-    dbConnection = configureDb(password);
+    dbPool = configureDb(password);
   
   //const mailboxInfos = await importFile(program.importfile);
   //await addMailboxes(mailboxInfos);
