@@ -52,23 +52,26 @@ const promptPassword = () => {
   return inquirer.prompt(prompt);
 }
 
-const configureDb = (password) => {
-  aryUriParts = program.opts().dburi.substring(8).split(/([@,\/])/);
-  const pool = mysql.createPool({
-    user: aryUriParts[0],
-    host: aryUriParts[2],
-    database: aryUriParts[4],
-    password: password
-  });
+const configureDb = async (password) => {
+  const aryUriParts = program.opts().dburi.substring(8).split(/([@,\/])/);
   
-  pool.getConnection((err, con) =>
-  {
-    if (con) {
-      con.release();
-      return pool;
-    } else {
-      console.error('error: ' + err);
-    }
+  return new Promise((resolve, reject) => {
+    const pool = mysql.createPool({
+      user: aryUriParts[0],
+      host: aryUriParts[2],
+      database: aryUriParts[4],
+      password: password
+    });
+
+    pool.getConnection((err, con) => {
+      if (con) {
+        con.release();
+        resolve(pool);
+      } else {
+        console.error('error: ' + err);
+        reject(err);
+      }
+    });
   });
 }
 
@@ -89,6 +92,22 @@ const importFile = async (filename) => {
     delete element.email;
     return { ...element, local_part: emailParts[0], domain: emailParts[1], active: "1", password2: element.password }
   });
+}
+
+const importDb = async (domain, activeonly = false) => {
+  let importJSON = null;
+
+  var query  = `SELECT local_part, domain, name, quota, password, password AS password2, active FROM mailbox`;
+      query += ` WHERE domain='$domain'`;
+  if (activeonly) {
+    query += ` AND active=1`;
+  }
+
+  console.log('query: $query');
+
+  const [infos] = await dbPool.query(query);
+  importJSON = JSON.stringify(infos);
+  return importJSON;
 }
 
 const addMailbox = async (mailboxInfo) => {
@@ -118,14 +137,16 @@ const main = async () => {
   program.version(version);
   
   program
+    .option('-a, --activeonly', 'Only import active mailboxes')
     .requiredOption('-d, --dburi <dburi>', 'URI to Postfix Admin : mysql://user@server/dbname')
-//    .requiredOption('-s, --serverurl <serverurl>', 'URL of mailcow server : https://mailcow.example.org')
-//    .requiredOption('-a, --apikey <apikey>', 'APIKEY for mailcow API')
     .option('-e, --exitonerror', 'exit on first error')
+    //.requiredOption('-k, --key <apikey>', 'APIKEY for mailcow API')
+    .requiredOption('-n, --domainname <domain>', 'Domain for which to migrate maiboxes')
     .option('-p, --password <password>', 'Pass password as argument')
+    //.requiredOption('-s, --serverurl <serverurl>', 'URL of mailcow server : https://mailcow.example.org')
     .parse();
 
-     if (program.opts().password) {
+    if (program.opts().password) {
       password = program.opts().password;
     } else {
       const input = await promptPassword();
@@ -133,7 +154,8 @@ const main = async () => {
     }
  
     //axiosInstance = configureAxios();
-    dbPool = configureDb(password);
+    dbPool = await configureDb(password);
+    const mailboxInfos = await importDb(program.opts().domain);
   
   //const mailboxInfos = await importFile(program.importfile);
   //await addMailboxes(mailboxInfos);
