@@ -1,19 +1,13 @@
 const mysql = require('mysql');
 
 class DatabaseManager {
-  constructor(dburi, password='') {
-
-    console.log(`dburi: ${dburi}`);
-    console.log(`password: ${password}`);
-
+  constructor(dburi, password='', debug=false) {
+    this.debug = debug;
     this.pool = this.createPool(dburi, password);
   }
 
   createPool(dburi, password) {
-    console.log('Creating connection pool to the database!');
     const dbParams = this.parseDbUri(dburi);
-    console.log('Have dbParams!');
-
     if (password=='') password = dbParams.password;
 
     const db_pool = mysql.createPool({
@@ -26,10 +20,11 @@ class DatabaseManager {
 
     db_pool.getConnection((err, connection) => {
       if (err) console.error(err.message);
-      console.log(`MySQL connection established: `, connection.threadId);
+      if (this.debug) console.log(`MySQL connection established: `, connection.threadId);
       connection.release(err => {if (err) console.error(err.message)});
     })
 
+    if (this.debug) console.log("Succesfully established MySQL connection pool");
     return db_pool;
   }
 
@@ -38,6 +33,8 @@ class DatabaseManager {
     if (!match) {
       throw new Error('Invalid database URI format');
     }
+
+    if (this.debug) console.log(match);
 
     return {
       user: match[1],
@@ -49,7 +46,7 @@ class DatabaseManager {
   }
 
   runQuery = (query) => new Promise((resolve, reject) => {
-    console.log(`query: ${query}`);
+    if (this.debug) console.log(`query: ${query}`);
     this.pool.getConnection((err, connection) => {
       if (err) console.error(err.message);
       connection.query(query, (err, results) => {
@@ -59,33 +56,6 @@ class DatabaseManager {
       });
     });
   })
-
-  getMailboxes = (domain, active=false) => new Promise((resolve, reject) => {
-    const query = `
-      SELECT local_part, domain, name, quota, password, password AS password2, active
-      FROM mailbox
-      WHERE domain = '${domain}'${active ? ' AND active = 1' : ''}
-    `;
-    resolve(this.runQuery(query));
-  });
-
-  getAliases = (domain, active=false) => new Promise((resolve, reject) => {
-    const query = `
-      SELECT address, goto, active
-      FROM alias
-      WHERE domain = '${domain}'${active ? ' AND active = 1' : ''}
-    `;
-    resolve(this.runQuery(query));
-  });
-
-  getDomains = (active=false) => new Promise((resolve, reject) => {
-    const query = `
-      SELECT domain, description, aliases, mailboxes, backupmx, active, 1 as restart_sogo
-      FROM domain
-      ${active ? 'WHERE active = 1' : ''}
-    `;
-    resolve(this.runQuery(query));
-  });
 }
 
 module.exports = DatabaseManager;
